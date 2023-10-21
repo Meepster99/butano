@@ -243,6 +243,8 @@ void init()
     sprite_affine_mats_manager::init(data.handles);
 }
 
+void update_indexes_to_commit(id_type id) { auto item = static_cast<item_type*>(id); _update_indexes_to_commit(*item); }
+
 int used_items_count()
 {
     return data.items_pool.size();

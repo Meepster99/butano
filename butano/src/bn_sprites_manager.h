@@ -42,6 +42,8 @@ namespace sprites_manager
     using id_type = void*;
 
     void init();
+	
+	void update_indexes_to_commit(id_type id);
 
     [[nodiscard]] int used_items_count();
 
