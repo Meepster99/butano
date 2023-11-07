@@ -1521,6 +1521,9 @@
  * must be converted from 50Hz to 60Hz (`true` by default). This option is ignored when importing audio files
  * with `*.s3m` and `*.vgm` extensions.
  *
+ * The default DMG music master volume is set to 25% ( bn::dmg_music_master_volume::QUARTER ).
+ * If it sounds too quiet for you, you can change it via bn::dmg_music::set_master_volume.
+ *
  *
  * @subsection import_sound Sound effects
  *
@@ -2156,13 +2159,39 @@
  * @tableofcontents
  *
  *
- * @section changelog_16_0_0 16.0.0 (next release)
+ * @section changelog_16_3_0 16.3.0
+ *
+ * * bn::music::stop, bn::dmg_music::stop, bn::sound_handle::stop and bn::sound_handle::release can be called
+ *   without triggering an assert if the music/sound in question isn't playing.
+ * * Target `*.gba` file is rebuilt when the target `*.elf` file isn't present.
+ * * Sprite affine mats management CPU usage reduced.
+ * * Sound handles management CPU usage reduced.
+ * * Backgrounds management CPU usage reduced.
+ * * bn::unordered_map::erase and bn::unordered_set::erase fixed.
+ *
+ *
+ * @section changelog_16_2_0 16.2.0
+ *
+ * * bn::dmg_music::master_volume and bn::dmg_music::set_master_volume added.
+ * * bn::color_effect::blend added.
+ * * Sprite affine mats management CPU usage reduced.
+ * * bn::jingle::play link error fixed.
+ *
+ *
+ * @section changelog_16_1_0 16.1.0
+ *
+ * * Sprite affine mats management CPU usage reduced.
+ * * Music ending detection fixed.
+ *
+ *
+ * @section changelog_16_0_0 16.0.0
  *
  * * bn::sound_handle and sound handle actions added.
  *   See the `audio` example to learn how to stop, release and setup sound effects with them.
  * * bn::jingle and jingle actions added.
  * * Audio commands generation optimized.
  * * Music ending detection fixed.
+ * * Create new tiles methods deprecated.
  *
  *
  * @section changelog_15_9_0 15.9.0

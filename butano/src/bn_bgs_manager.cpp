@@ -14,6 +14,7 @@
 #include "bn_display_manager.h"
 #include "bn_bg_blocks_manager.h"
 #include "bn_affine_bg_mat_attributes.h"
+#include "bn_affine_mat_attributes_reader.h"
 #include "../hw/include/bn_hw_bgs.h"
 #include "../hw/include/bn_hw_display.h"
 
@@ -57,7 +58,6 @@ namespace
         int8_t handles_index = -1;
         bool blending_enabled: 1;
         bool visible: 1;
-        bool update: 1;
         bool big_map: 1;
         bool commit_big_map: 1;
         bool full_commit_big_map: 1;
@@ -68,8 +68,7 @@ namespace
             regular_map(move(_regular_map)),
             camera(builder.release_camera()),
             blending_enabled(builder.blending_enabled()),
-            visible(builder.visible()),
-            update(true)
+            visible(builder.visible())
         {
             for(bool& visible_in_window : visible_in_windows)
             {
@@ -88,8 +87,7 @@ namespace
             affine_map(move(_affine_map)),
             camera(builder.release_camera()),
             blending_enabled(builder.blending_enabled()),
-            visible(builder.visible()),
-            update(true)
+            visible(builder.visible())
         {
             for(bool& visible_in_window : visible_in_windows)
             {
@@ -326,28 +324,6 @@ namespace
                 commit_big_map = true;
             }
         }
-    };
-
-
-    class affine_mat_registers
-    {
-
-    public:
-        explicit affine_mat_registers(const affine_bg_mat_attributes& affine_mat_attributes) :
-            _pa(int16_t(affine_mat_attributes.pa_register_value())),
-            _pb(int16_t(affine_mat_attributes.pb_register_value())),
-            _pc(int16_t(affine_mat_attributes.pc_register_value())),
-            _pd(int16_t(affine_mat_attributes.pd_register_value()))
-        {
-        }
-
-        [[nodiscard]] friend bool operator==(const affine_mat_registers& a, const affine_mat_registers& b) = default;
-
-    private:
-        int16_t _pa;
-        int16_t _pb;
-        int16_t _pc;
-        int16_t _pd;
     };
 
 
@@ -864,10 +840,12 @@ void set_rotation_angle(id_type id, fixed rotation_angle)
 
     if(rotation_angle != affine_mat_attributes.rotation_angle())
     {
-        affine_mat_registers old_registers(affine_mat_attributes);
+        affine_mat_attributes_reader reader(affine_mat_attributes.mat_attributes());
+        int sin = reader.sin();
+        int cos = reader.cos();
         affine_mat_attributes.set_rotation_angle(rotation_angle);
 
-        if(affine_mat_registers(affine_mat_attributes) != old_registers)
+        if(reader.sin() != sin || reader.cos() != cos)
         {
             item->update_affine_mat_attributes();
             _update_item_hw_affine_attributes(*item);
@@ -888,11 +866,11 @@ void set_horizontal_scale(id_type id, fixed horizontal_scale)
 
     if(horizontal_scale != affine_mat_attributes.horizontal_scale())
     {
-        int pa = affine_mat_attributes.pa_register_value();
-        int pb = affine_mat_attributes.pb_register_value();
+        affine_mat_attributes_reader reader(affine_mat_attributes.mat_attributes());
+        unsigned sx = reader.sx();
         affine_mat_attributes.set_horizontal_scale(horizontal_scale);
 
-        if(affine_mat_attributes.pa_register_value() != pa || affine_mat_attributes.pb_register_value() != pb)
+        if(reader.sx() != sx)
         {
             item->update_affine_mat_attributes();
             _update_item_hw_affine_attributes(*item);
@@ -913,11 +891,11 @@ void set_vertical_scale(id_type id, fixed vertical_scale)
 
     if(vertical_scale != affine_mat_attributes.vertical_scale())
     {
-        int pc = affine_mat_attributes.pc_register_value();
-        int pd = affine_mat_attributes.pd_register_value();
+        affine_mat_attributes_reader reader(affine_mat_attributes.mat_attributes());
+        unsigned sy = reader.sy();
         affine_mat_attributes.set_vertical_scale(vertical_scale);
 
-        if(affine_mat_attributes.pc_register_value() != pc || affine_mat_attributes.pd_register_value() != pd)
+        if(reader.sy() != sy)
         {
             item->update_affine_mat_attributes();
             _update_item_hw_affine_attributes(*item);
@@ -932,10 +910,12 @@ void set_scale(id_type id, fixed scale)
 
     if(scale != affine_mat_attributes.horizontal_scale() || scale != affine_mat_attributes.vertical_scale())
     {
-        affine_mat_registers old_registers(affine_mat_attributes);
+        affine_mat_attributes_reader reader(affine_mat_attributes.mat_attributes());
+        unsigned sx = reader.sx();
+        unsigned sy = reader.sy();
         affine_mat_attributes.set_scale(scale);
 
-        if(affine_mat_registers(affine_mat_attributes) != old_registers)
+        if(reader.sx() != sx || reader.sy() != sy)
         {
             item->update_affine_mat_attributes();
             _update_item_hw_affine_attributes(*item);
@@ -951,10 +931,12 @@ void set_scale(id_type id, fixed horizontal_scale, fixed vertical_scale)
     if(horizontal_scale != affine_mat_attributes.horizontal_scale() ||
             vertical_scale != affine_mat_attributes.vertical_scale())
     {
-        affine_mat_registers old_registers(affine_mat_attributes);
+        affine_mat_attributes_reader reader(affine_mat_attributes.mat_attributes());
+        unsigned sx = reader.sx();
+        unsigned sy = reader.sy();
         affine_mat_attributes.set_scale(horizontal_scale, vertical_scale);
 
-        if(affine_mat_registers(affine_mat_attributes) != old_registers)
+        if(reader.sx() != sx || reader.sy() != sy)
         {
             item->update_affine_mat_attributes();
             _update_item_hw_affine_attributes(*item);
@@ -1142,14 +1124,9 @@ void set_mat_attributes(id_type id, const affine_mat_attributes& mat_attributes)
 
     if(mat_attributes != item->affine_mat_attributes.mat_attributes())
     {
-        affine_mat_registers old_registers(item->affine_mat_attributes);
         item->affine_mat_attributes.set_mat_attributes(mat_attributes);
-
-        if(affine_mat_registers(item->affine_mat_attributes) != old_registers)
-        {
-            item->update_affine_mat_attributes();
-            _update_item_hw_affine_attributes(*item);
-        }
+        item->update_affine_mat_attributes();
+        _update_item_hw_affine_attributes(*item);
     }
 }
 

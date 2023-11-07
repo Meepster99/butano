@@ -8,10 +8,11 @@
 #define GBT_HARDWARE_H__
 
 #include <stdio.h>
+#include "../../../include/bn_hw_common.h"
 
 #define BIT(n)              (1 << (n))
 
-#define EWRAM_BSS           __attribute__((section(".sbss")))
+#define EWRAM_BSS BN_DATA_EWRAM_BSS
 
 // Definitions taken from libugba
 

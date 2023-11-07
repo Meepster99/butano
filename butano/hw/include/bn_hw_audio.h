@@ -8,6 +8,7 @@
 
 #include "maxmod.h"
 #include "bn_dmg_music_type.h"
+#include "bn_dmg_music_master_volume.h"
 
 namespace bn::hw::audio
 {
@@ -17,30 +18,15 @@ namespace bn::hw::audio
 
     void disable();
 
-    [[nodiscard]] inline bool music_playing()
-    {
-        return mmActive();
-    }
+    [[nodiscard]] bool music_playing();
 
-    inline void play_music(int id, bool loop)
-    {
-        mmStart(mm_word(id), loop ? MM_PLAY_LOOP : MM_PLAY_ONCE);
-    }
+    void play_music(int id, bool loop);
 
-    inline void stop_music()
-    {
-        mmStop();
-    }
+    void stop_music();
 
-    inline void pause_music()
-    {
-        mmPause();
-    }
+    void pause_music();
 
-    inline void resume_music()
-    {
-        mmResume();
-    }
+    void resume_music();
 
     [[nodiscard]] inline int music_position()
     {
@@ -82,6 +68,8 @@ namespace bn::hw::audio
         mmSetJingleVolume(mm_word(volume));
     }
 
+    [[nodiscard]] bool dmg_music_playing();
+
     void play_dmg_music(const void* song, dmg_music_type type, int speed, bool loop);
 
     void stop_dmg_music();
@@ -95,6 +83,8 @@ namespace bn::hw::audio
     void set_dmg_music_position(int pattern, int row);
 
     void set_dmg_music_volume(int left_volume, int right_volume);
+
+    void set_dmg_music_master_volume(dmg_music_master_volume volume);
 
     [[nodiscard]] inline bool sound_active(mm_sfxhand handle)
     {

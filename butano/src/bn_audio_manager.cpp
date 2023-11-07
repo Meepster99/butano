@@ -7,6 +7,7 @@
 
 #include "bn_config_audio.h"
 #include "bn_unordered_map.h"
+#include "bn_identity_hasher.h"
 #include "bn_dmg_music_position.h"
 #include "../hw/include/bn_hw_audio.h"
 
@@ -300,6 +301,25 @@ namespace
     };
 
 
+    class set_dmg_music_master_volume_command
+    {
+
+    public:
+        explicit set_dmg_music_master_volume_command(int volume) :
+            _volume(volume)
+        {
+        }
+
+        void execute() const
+        {
+            hw::audio::set_dmg_music_master_volume(bn::dmg_music_master_volume(_volume));
+        }
+
+    private:
+        int _volume;
+    };
+
+
     class play_sound_command
     {
 
@@ -499,6 +519,7 @@ namespace
         DMG_MUSIC_RESUME,
         DMG_MUSIC_SET_POSITION,
         DMG_MUSIC_SET_VOLUME,
+        DMG_MUSIC_SET_MASTER_VOLUME,
         SOUND_PLAY,
         SOUND_PLAY_EX,
         SOUND_STOP,
@@ -525,7 +546,7 @@ namespace
 
     public:
         command_data command_datas[max_commands];
-        unordered_map<unsigned, sound_data_type, max_sound_channels * 2> sound_map;
+        unordered_map<unsigned, sound_data_type, max_sound_channels * 2, identity_hasher> sound_map;
         fixed music_volume;
         fixed music_tempo;
         fixed music_pitch;
@@ -542,6 +563,7 @@ namespace
         uint16_t new_sound_handle = 0;
         command_code command_codes[max_commands];
         bn::dmg_music_type dmg_music_type = dmg_music_type::GBT_PLAYER;
+        bn::dmg_music_master_volume dmg_music_master_volume = dmg_music_master_volume::QUARTER;
         bool music_playing = false;
         bool music_paused = false;
         bool jingle_playing = false;
@@ -606,16 +628,17 @@ void play_music(music_item item, fixed volume, bool loop)
 
 void stop_music()
 {
-    BN_BASIC_ASSERT(data.music_playing, "There's no music playing");
+    if(data.music_playing)
+    {
+        int commands = data.commands_count;
+        BN_BASIC_ASSERT(commands < max_commands, "No more audio commands available");
 
-    int commands = data.commands_count;
-    BN_BASIC_ASSERT(commands < max_commands, "No more audio commands available");
+        data.command_codes[commands] = MUSIC_STOP;
+        data.commands_count = commands + 1;
 
-    data.command_codes[commands] = MUSIC_STOP;
-    data.commands_count = commands + 1;
-
-    data.music_playing = false;
-    data.music_paused = false;
+        data.music_playing = false;
+        data.music_paused = false;
+    }
 }
 
 bool music_paused()
@@ -846,16 +869,17 @@ void play_dmg_music(const dmg_music_item& item, int speed, bool loop)
 
 void stop_dmg_music()
 {
-    BN_BASIC_ASSERT(data.dmg_music_data, "There's no DMG music playing");
+    if(data.dmg_music_data)
+    {
+        int commands = data.commands_count;
+        BN_BASIC_ASSERT(commands < max_commands, "No more audio commands available");
 
-    int commands = data.commands_count;
-    BN_BASIC_ASSERT(commands < max_commands, "No more audio commands available");
+        data.command_codes[commands] = DMG_MUSIC_STOP;
+        data.commands_count = commands + 1;
 
-    data.command_codes[commands] = DMG_MUSIC_STOP;
-    data.commands_count = commands + 1;
-
-    data.dmg_music_data = nullptr;
-    data.dmg_music_paused = false;
+        data.dmg_music_data = nullptr;
+        data.dmg_music_paused = false;
+    }
 }
 
 bool dmg_music_paused()
@@ -959,6 +983,26 @@ void set_dmg_music_volume(fixed left_volume, fixed right_volume)
     data.dmg_music_right_volume = right_volume;
 }
 
+bn::dmg_music_master_volume dmg_music_master_volume()
+{
+    return data.dmg_music_master_volume;
+}
+
+void set_dmg_music_master_volume(bn::dmg_music_master_volume volume)
+{
+    if(volume != data.dmg_music_master_volume)
+    {
+        int commands = data.commands_count;
+        BN_BASIC_ASSERT(commands < max_commands, "No more audio commands available");
+
+        data.command_codes[commands] = DMG_MUSIC_SET_MASTER_VOLUME;
+        new(data.command_datas + commands) set_dmg_music_master_volume_command(int(volume));
+        data.commands_count = commands + 1;
+
+        data.dmg_music_master_volume = volume;
+    }
+}
+
 bool dmg_sync_enabled()
 {
     return data.dmg_sync_enabled;
@@ -1022,28 +1066,28 @@ uint16_t play_sound(int priority, bn::sound_item item, fixed volume, fixed speed
 
 void stop_sound(uint16_t handle)
 {
-    auto it = data.sound_map.find(handle);
-    BN_BASIC_ASSERT(it != data.sound_map.end(), "Sound is not active: ", handle);
+    if(data.sound_map.find(handle) != data.sound_map.end())
+    {
+        int commands = data.commands_count;
+        BN_BASIC_ASSERT(commands < max_commands, "No more audio commands available");
 
-    int commands = data.commands_count;
-    BN_BASIC_ASSERT(commands < max_commands, "No more audio commands available");
-
-    data.command_codes[commands] = SOUND_STOP;
-    new(data.command_datas + commands) stop_sound_command(handle);
-    data.commands_count = commands + 1;
+        data.command_codes[commands] = SOUND_STOP;
+        new(data.command_datas + commands) stop_sound_command(handle);
+        data.commands_count = commands + 1;
+    }
 }
 
 void release_sound(uint16_t handle)
 {
-    BN_BASIC_ASSERT(data.sound_map.find(handle) != data.sound_map.end(),
-                    "Sound is not active: ", handle);
+    if(data.sound_map.find(handle) != data.sound_map.end())
+    {
+        int commands = data.commands_count;
+        BN_BASIC_ASSERT(commands < max_commands, "No more audio commands available");
 
-    int commands = data.commands_count;
-    BN_BASIC_ASSERT(commands < max_commands, "No more audio commands available");
-
-    data.command_codes[commands] = SOUND_RELEASE;
-    new(data.command_datas + commands) release_sound_command(handle);
-    data.commands_count = commands + 1;
+        data.command_codes[commands] = SOUND_RELEASE;
+        new(data.command_datas + commands) release_sound_command(handle);
+        data.commands_count = commands + 1;
+    }
 }
 
 bn::sound_item sound_item(uint16_t handle)
@@ -1175,6 +1219,30 @@ void update()
 
 void execute_commands()
 {
+    const uint8_t* old_dmg_music_data = data.dmg_music_data;
+    const uint8_t* dmg_music_data = old_dmg_music_data;
+    bool dmg_music_paused = data.dmg_music_paused;
+    bool music_playing = data.music_playing;
+    bool music_paused = data.music_paused;
+    bool jingle_playing = data.jingle_playing;
+
+    if(music_playing && ! hw::audio::music_playing())
+    {
+        music_playing = false;
+        music_paused = false;
+    }
+
+    if(jingle_playing && ! hw::audio::jingle_playing())
+    {
+        jingle_playing = false;
+    }
+
+    if(dmg_music_data && ! hw::audio::dmg_music_playing())
+    {
+        dmg_music_data = nullptr;
+        dmg_music_paused = false;
+    }
+
     hw::audio::update_sounds_queue();
 
     for(int index = 0, limit = data.commands_count; index < limit; ++index)
@@ -1184,66 +1252,116 @@ void execute_commands()
 
         case MUSIC_PLAY:
             reinterpret_cast<const play_music_command&>(data.command_datas[index].data).execute();
+            music_playing = true;
+            music_paused = false;
             break;
 
         case MUSIC_STOP:
             hw::audio::stop_music();
+            music_playing = false;
+            music_paused = false;
             break;
 
         case MUSIC_PAUSE:
-            hw::audio::pause_music();
+            if(music_playing)
+            {
+                hw::audio::pause_music();
+                music_paused = true;
+            }
             break;
 
         case MUSIC_RESUME:
-            hw::audio::resume_music();
+            if(music_playing)
+            {
+                hw::audio::resume_music();
+                music_paused = false;
+            }
             break;
 
         case MUSIC_SET_POSITION:
-            reinterpret_cast<const set_music_position_command&>(data.command_datas[index].data).execute();
+            if(music_playing)
+            {
+                reinterpret_cast<const set_music_position_command&>(data.command_datas[index].data).execute();
+            }
             break;
 
         case MUSIC_SET_VOLUME:
-            reinterpret_cast<const set_music_volume_command&>(data.command_datas[index].data).execute();
+            if(music_playing)
+            {
+                reinterpret_cast<const set_music_volume_command&>(data.command_datas[index].data).execute();
+            }
             break;
 
         case MUSIC_SET_TEMPO:
-            reinterpret_cast<const set_music_tempo_command&>(data.command_datas[index].data).execute();
+            if(music_playing)
+            {
+                reinterpret_cast<const set_music_tempo_command&>(data.command_datas[index].data).execute();
+            }
             break;
 
         case MUSIC_SET_PITCH:
-            reinterpret_cast<const set_music_pitch_command&>(data.command_datas[index].data).execute();
+            if(music_playing)
+            {
+                reinterpret_cast<const set_music_pitch_command&>(data.command_datas[index].data).execute();
+            }
             break;
 
         case JINGLE_PLAY:
             reinterpret_cast<const play_jingle_command&>(data.command_datas[index].data).execute();
+            jingle_playing = true;
             break;
 
         case JINGLE_SET_VOLUME:
-            reinterpret_cast<const set_jingle_volume_command&>(data.command_datas[index].data).execute();
+            if(jingle_playing)
+            {
+                reinterpret_cast<const set_jingle_volume_command&>(data.command_datas[index].data).execute();
+            }
             break;
 
         case DMG_MUSIC_PLAY:
             reinterpret_cast<const play_dmg_music_command&>(data.command_datas[index].data).execute();
+            dmg_music_data = old_dmg_music_data;
+            dmg_music_paused = false;
             break;
 
         case DMG_MUSIC_STOP:
             hw::audio::stop_dmg_music();
+            dmg_music_data = nullptr;
+            dmg_music_paused = false;
             break;
 
         case DMG_MUSIC_PAUSE:
-            hw::audio::pause_dmg_music();
+            if(dmg_music_data)
+            {
+                hw::audio::pause_dmg_music();
+                dmg_music_paused = true;
+            }
             break;
 
         case DMG_MUSIC_RESUME:
-            hw::audio::resume_dmg_music();
+            if(dmg_music_data)
+            {
+                hw::audio::resume_dmg_music();
+                dmg_music_paused = false;
+            }
             break;
 
         case DMG_MUSIC_SET_POSITION:
-            reinterpret_cast<const set_dmg_music_position_command&>(data.command_datas[index].data).execute();
+            if(dmg_music_data)
+            {
+                reinterpret_cast<const set_dmg_music_position_command&>(data.command_datas[index].data).execute();
+            }
             break;
 
         case DMG_MUSIC_SET_VOLUME:
-            reinterpret_cast<const set_dmg_music_volume_command&>(data.command_datas[index].data).execute();
+            if(dmg_music_data)
+            {
+                reinterpret_cast<const set_dmg_music_volume_command&>(data.command_datas[index].data).execute();
+            }
+            break;
+
+        case DMG_MUSIC_SET_MASTER_VOLUME:
+            reinterpret_cast<const set_dmg_music_master_volume_command&>(data.command_datas[index].data).execute();
             break;
 
         case SOUND_PLAY:
@@ -1285,38 +1403,24 @@ void execute_commands()
 
     data.commands_count = 0;
 
-    if(data.music_playing && ! data.music_paused)
+    if(music_playing)
     {
-        if(hw::audio::music_playing())
-        {
-            data.music_position = hw::audio::music_position();
-        }
-        else
-        {
-            data.music_playing = false;
-        }
+        data.music_position = hw::audio::music_position();
     }
 
-    if(data.jingle_playing && ! hw::audio::jingle_playing())
-    {
-        data.jingle_playing = false;
-    }
-
-    if(data.dmg_music_data && ! data.dmg_music_paused)
+    if(dmg_music_data)
     {
         int pattern;
         int row;
         hw::audio::dmg_music_position(pattern, row);
-
-        if(pattern >= 0)
-        {
-            data.dmg_music_position = bn::dmg_music_position(pattern, row);
-        }
-        else
-        {
-            data.dmg_music_data = nullptr;
-        }
+        data.dmg_music_position = bn::dmg_music_position(pattern, row);
     }
+
+    data.music_playing = music_playing;
+    data.music_paused = music_paused;
+    data.jingle_playing = jingle_playing;
+    data.dmg_music_data = dmg_music_data;
+    data.dmg_music_paused = dmg_music_paused;
 
     for(auto it = data.sound_map.begin(), end = data.sound_map.end(); it != end; )
     {

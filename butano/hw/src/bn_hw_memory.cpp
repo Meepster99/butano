@@ -11,13 +11,29 @@
     #include "bn_random.h"
 #endif
 
-extern unsigned __iwram_start__;
-extern unsigned __iwram_top;
-extern unsigned __fini_array_end;
-extern unsigned __ewram_start;
-extern unsigned __sbss_end__;
-extern char __eheap_start[], __eheap_end[];
+#ifdef BN_WONDERFUL
+    extern unsigned __iwram_start;
+    #define BN_IWRAM_START __iwram_start
 
+    extern unsigned __sp_sys;
+    #define BN_IWRAM_TOP __sp_sys
+
+    extern unsigned __iwram_end;
+    #define BN_IWRAM_END __iwram_end
+#else
+    extern unsigned __iwram_start__;
+    #define BN_IWRAM_START __iwram_start__
+
+    extern unsigned __iwram_top;
+    #define BN_IWRAM_TOP __iwram_top
+
+    extern unsigned __fini_array_end;
+    #define BN_IWRAM_END __fini_array_end
+#endif
+
+extern unsigned __ewram_start;
+extern char __eheap_start[], __eheap_end[];
+	
 namespace bn::hw::memory
 {
 
@@ -56,23 +72,23 @@ void init()
 
 int used_stack_iwram(int current_stack_address)
 {
-    auto iwram_top = reinterpret_cast<uint8_t*>(&__iwram_top);
+    auto iwram_top = reinterpret_cast<uint8_t*>(&BN_IWRAM_TOP);
     auto iwram_stack = reinterpret_cast<uint8_t*>(&current_stack_address);
     return iwram_top - iwram_stack;
 }
 
 int used_static_iwram()
 {
-    auto iwram_start = reinterpret_cast<uint8_t*>(&__iwram_start__);
-    auto iwram_end = reinterpret_cast<uint8_t*>(&__fini_array_end);
+    auto iwram_start = reinterpret_cast<uint8_t*>(&BN_IWRAM_START);
+    auto iwram_end = reinterpret_cast<uint8_t*>(&BN_IWRAM_END);
     return iwram_end - iwram_start;
 }
 
 int used_static_ewram()
 {
     auto ewram_start = reinterpret_cast<uint8_t*>(&__ewram_start);
-    auto sbss_end = reinterpret_cast<uint8_t*>(&__sbss_end__);
-    return sbss_end - ewram_start;
+    auto eheap_start = reinterpret_cast<uint8_t*>(&__eheap_start);
+    return eheap_start - ewram_start;
 }
 
 char* ewram_heap_start()
